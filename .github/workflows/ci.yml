@@ -1,0 +1,51 @@
+name: Continuous Integration
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the Docker image
+        run: docker build -t kmenzyk/react-test -f ./client/Dockerfile.dev ./client
+      - name: Run tests
+        run: docker run -e CI=true kmenzyk/react-test npm run test
+      - name: Build client docker image
+        run: docker build -t kmenzyk/multi-client ./client
+      - name: Build nginx docker image
+        run: docker build -t kmenzyk/multi-nginx ./nginx
+      - name: Build server docker image
+        run: docker build -t kmenzyk/multi-server ./server
+      - name: Build worker docker image
+        run: docker build -t kmenzyk/multi-worker ./worker
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_ID }}" --password-stdin
+      - name: Push client docker image
+        run: docker push kmenzyk/multi-client
+      - name: Push nginx docker image
+        run: docker push kmenzyk/multi-nginx
+      - name: Push server docker image
+        run: docker push kmenzyk/multi-server
+      - name: Push worker docker image
+        run: docker push kmenzyk/multi-worker
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Beanstalk Deploy
+        uses: einaregilsson/beanstalk-deploy@v3
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
+          region: us-east-1
+          application_name: multi-docker
+          environment_name: MultiDocker-env
+          version_label: ${{github.sha}}
+          deployment_package: Dockerrun.aws.json
