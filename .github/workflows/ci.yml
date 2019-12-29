@@ -7,10 +7,22 @@ env:
   GKE_EMAIL: ${{ secrets.GKE_EMAIL }}
   GKE_ZONE: europe-west3-a
   GKE_CLUSTER: multi-cluster
+  SHA: ${{ github.sha }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Build the Docker image
+        run: docker build -t kmenzyk/react-test -f ./client/Dockerfile.dev ./client
+      - name: Run tests
+        run: docker run -e CI=true kmenzyk/react-test npm run test
 
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master'
 
@@ -26,3 +38,9 @@ jobs:
 
       - name: Set up GKE
         run: gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $GKE_PROJECT
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Deploy
+        run: bash ./deploy.sh
