@@ -5,9 +5,12 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/rewrite-target: /$1
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
 spec:
   rules:
-    - http:
+    - host: multi-k8s.menzyk.net
+      http:
         paths:
           - path: /?(.*)
             backend:
@@ -17,3 +20,19 @@ spec:
             backend:
               serviceName: server-cluster-ip-service
               servicePort: 5000
+    - host: www.multi-k8s.menzyk.net
+      http:
+        paths:
+          - path: /?(.*)
+            backend:
+              serviceName: client-cluster-ip-service
+              servicePort: 3000
+          - path: /api/?(.*)
+            backend:
+              serviceName: server-cluster-ip-service
+              servicePort: 500
+  tls:
+    - hosts:
+        - multi-k8s.menzyk.net
+        - www.multi-k8s.menzyk.net
+      secretName: multi-k8s-menzyk-net
